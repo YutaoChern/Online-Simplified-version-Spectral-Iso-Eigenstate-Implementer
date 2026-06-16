@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spectral-Iso Eigenstate Implementer</title>
+<style>
+  :root{
+    --ink:#0e1116; --panel:#171c24; --panel-2:#1e242e; --line:#2a313c; --line-2:#39424f;
+    --text:#e9ebef; --muted:#8b94a3; --muted-2:#6b7480;
+    --paper:#f7f6f2; --paper-line:#dcd9d0; --paper-ink:#23262b;
+    --amber:#f0a836; --amber-ink:#2a1d05; --steel:#5fb6c4;
+    --blue:#3b4cbf; --red:#c72626; --ok:#76c08a; --warn:#e6a23c;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, #1a2230 0%, transparent 55%),
+      var(--ink);
+    color:var(--text); font-family:var(--sans); font-size:14px; line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{ color:var(--steel); }
+  .wrap{ max-width:1280px; margin:0 auto; padding:22px clamp(12px,3vw,28px) 40px; }
+
+  header.top{ display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+  .brand{ display:flex; flex-direction:column; gap:2px; }
+  .eyebrow{ font-family:var(--mono); font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--amber); }
+  h1{ font-size:clamp(20px,3.2vw,30px); margin:0; font-weight:800; letter-spacing:-.02em; }
+  .sub{ color:var(--muted); font-size:13px; max-width:60ch; }
+  .gapline{ margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--muted); text-align:right; }
+  .gapline b{ color:var(--text); font-size:15px; }
+
+  .grid{ display:grid; grid-template-columns:332px 1fr; gap:18px; align-items:start; }
+  @media (max-width:880px){ .grid{ grid-template-columns:1fr; } }
+
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; }
+  .pad{ padding:16px; }
+  .panel-title{ font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin:0 0 12px; }
+
+  label.field{ display:block; margin-bottom:12px; }
+  label.field > span{ display:block; font-size:12px; color:var(--muted); margin-bottom:5px; }
+  input[type=text], input[type=number], select{
+    width:100%; background:var(--panel-2); border:1px solid var(--line-2); color:var(--text);
+    border-radius:9px; padding:9px 10px; font-family:var(--mono); font-size:13px; outline:none;
+  }
+  input:focus, select:focus{ border-color:var(--steel); box-shadow:0 0 0 3px rgba(95,182,196,.18); }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .row-build{ display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end; }
+
+  button{
+    appearance:none; border:1px solid var(--line-2); background:var(--panel-2); color:var(--text);
+    border-radius:9px; padding:9px 12px; font-family:var(--sans); font-size:13px; font-weight:600;
+    cursor:pointer; transition:transform .04s ease, background .15s ease, border-color .15s ease;
+  }
+  button:hover{ border-color:var(--steel); }
+  button:active{ transform:translateY(1px); }
+  button:disabled{ opacity:.45; cursor:not-allowed; }
+  button.primary{ background:var(--amber); color:var(--amber-ink); border-color:transparent; }
+  button.primary:hover{ filter:brightness(1.05); }
+  button.ghost{ background:transparent; }
+  .btns{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px; }
+  .run-row{ margin-top:6px; }
+  .run-row button{ width:100%; padding:12px; font-size:14px; }
+
+  .status{ margin-top:12px; font-family:var(--mono); font-size:12px; color:var(--ok); min-height:18px; }
+  .status.run{ color:var(--warn); }
+  .status.err{ color:#e07a7a; }
+
+  .help{ font-size:12px; color:var(--muted); line-height:1.7; background:var(--panel-2);
+    border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:14px; }
+  .help b{ color:var(--text); }
+  .swatch{ display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:middle; margin-right:4px; }
+
+  .stage{ position:relative; }
+  .stage .frame{ background:var(--paper); border-radius:12px; padding:10px; border:1px solid var(--line); }
+  canvas{ display:block; width:100%; height:auto; touch-action:none; }
+  .stage-foot{ display:flex; justify-content:space-between; align-items:center; gap:10px;
+    margin-top:8px; font-family:var(--mono); font-size:11px; color:var(--muted); flex-wrap:wrap; }
+
+  .progress{ height:4px; background:var(--line); border-radius:3px; overflow:hidden; margin-top:10px; display:none; }
+  .progress > i{ display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--steel),var(--amber)); transition:width .2s ease; }
+
+  .results{ margin-top:18px; display:none; }
+  .results.show{ display:block; }
+  .res-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  @media (max-width:880px){ .res-grid{ grid-template-columns:1fr; } }
+  .res-cell{ background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:10px; }
+  .res-cell h3{ margin:0 0 6px; font-size:12px; font-family:var(--mono); letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted-2); }
+  .res-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+
+  footer{ margin-top:26px; color:var(--muted-2); font-size:12px; }
+  footer code{ font-family:var(--mono); color:var(--muted); }
+  @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="eyebrow">Zero-energy lattice design · browser edition</span>
+      <h1>Spectral-Iso Eigenstate Implementer</h1>
+      <span class="sub">Paint a target amplitude pattern on the lattice, then solve for a Hamiltonian whose zero-energy eigenstate is exactly that pattern — with the spectral gap pushed as wide as possible.</span>
+    </div>
+    <div class="gapline" id="gapReadout">spectral gap<br><b>—</b></div>
+  </header>
+
+  <div class="grid">
+    <!-- ===== controls ===== -->
+    <aside class="card pad">
+      <p class="panel-title">Lattice</p>
+      <div class="row-build">
+        <label class="field" style="margin:0;">
+          <span>Grid size n  (N = n²)</span>
+          <input id="nInput" type="number" min="2" max="24" value="5">
+        </label>
+        <button id="buildBtn">Build / reset</button>
+      </div>
+
+      <p class="panel-title" style="margin-top:18px;">Target</p>
+      <label class="field">
+        <span>Load an example (sets n = 10)</span>
+        <select id="exampleSel"></select>
+      </label>
+
+      <p class="panel-title" style="margin-top:8px;">Solver</p>
+      <div class="row2">
+        <label class="field">
+          <span>ra index</span>
+          <select id="raSel"><option value="2">2 · robust</option><option value="1">1 · nearest</option></select>
+        </label>
+        <label class="field">
+          <span>Max iterations</span>
+          <input id="maxItInput" type="number" min="1" value="80">
+        </label>
+      </div>
+      <div class="row2">
+        <label class="field"><span>Lower bound</span><input id="lbInput" type="text" value="-1"></label>
+        <label class="field"><span>Upper bound</span><input id="ubInput" type="text" value="1"></label>
+      </div>
+
+      <div class="run-row"><button id="runBtn" class="primary">Run optimization</button></div>
+      <div class="progress" id="progress"><i></i></div>
+      <div class="btns">
+        <button id="clearBtn" class="ghost">Clear all</button>
+        <button id="saveBtn" class="ghost" disabled>Save results</button>
+      </div>
+
+      <div class="status" id="status">Ready. Paint sites on the lattice.</div>
+
+      <div class="help">
+        <b>How to paint</b><br>
+        <b>Left-click / drag</b> — select (amplitude = 1)<br>
+        <b>Right-click / drag</b> — erase<br>
+        <b>Double-click a site</b> — set any real amplitude<br>
+        <b>Tap (touch)</b> — toggle a site on/off<br>
+        <br>
+        <span class="swatch" style="background:var(--red);"></span>positive &nbsp;
+        <span class="swatch" style="background:var(--blue);"></span>negative &nbsp;
+        <span class="swatch" style="background:#b9bbc0;"></span>unselected
+      </div>
+    </aside>
+
+    <!-- ===== lattice stage ===== -->
+    <main>
+      <div class="card pad stage">
+        <p class="panel-title" id="latticeTitle">5 × 5 lattice · N = 25 sites</p>
+        <div class="frame"><canvas id="lattice"></canvas></div>
+        <div class="stage-foot">
+          <span id="selCount">0 sites selected</span>
+          <span>red = +, blue = −, grey = 0</span>
+        </div>
+      </div>
+
+      <section class="results card pad" id="results">
+        <p class="panel-title">Results</p>
+        <div class="res-grid">
+          <div class="res-cell"><h3>Hamiltonian connectivity</h3><canvas id="cConn"></canvas></div>
+          <div class="res-cell"><h3>Eigenvalue spectrum</h3><canvas id="cSpec"></canvas></div>
+          <div class="res-cell"><h3>Zero-energy state</h3><canvas id="cZero"></canvas></div>
+        </div>
+        <div class="res-actions">
+          <button id="dlPng" class="ghost">Download results (PNG)</button>
+          <button id="dlCsv" class="ghost">Download Hamiltonian (CSV)</button>
+          <button id="dlJson" class="ghost">Download Hamiltonian (JSON)</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    Runs entirely in your browser — no server, no MATLAB. The optimizer is a bounded evolution
+    strategy standing in for <code>fmincon(sqp)</code>; the zero-mode is enforced exactly, but the
+    gap value won't be bit-identical to MATLAB. Host the single <code>.html</code> file anywhere
+    (e.g. GitHub Pages) to share it as a URL.
+  </footer>
+</div>
+
+<!-- ============== numeric worker (no escaping needed in this block) ============== -->
+<script id="workerSrc" type="text/js-worker">
+function rot(a,n,s,tau,i,j,k,l){ const g=a[i*n+j], h=a[k*n+l]; a[i*n+j]=g-s*(h+g*tau); a[k*n+l]=h+s*(g-h*tau); }
+function jacobiEig(Ain,n,wantVec){
+  const a=Float64Array.from(Ain), d=new Float64Array(n), b=new Float64Array(n), z=new Float64Array(n);
+  let v=null; if(wantVec){ v=new Float64Array(n*n); for(let i=0;i<n;i++) v[i*n+i]=1; }
+  for(let ip=0;ip<n;ip++){ b[ip]=d[ip]=a[ip*n+ip]; z[ip]=0; }
+  for(let iter=0;iter<60;iter++){
+    let sm=0; for(let ip=0;ip<n-1;ip++) for(let iq=ip+1;iq<n;iq++) sm+=Math.abs(a[ip*n+iq]);
+    if(sm===0) break;
+    const tresh=(iter<3)?0.2*sm/(n*n):0;
+    for(let ip=0;ip<n-1;ip++) for(let iq=ip+1;iq<n;iq++){
+      const g=100*Math.abs(a[ip*n+iq]);
+      if(iter>3 && Math.abs(d[ip])+g===Math.abs(d[ip]) && Math.abs(d[iq])+g===Math.abs(d[iq])){ a[ip*n+iq]=0; }
+      else if(Math.abs(a[ip*n+iq])>tresh){
+        let h=d[iq]-d[ip], t;
+        if(Math.abs(h)+g===Math.abs(h)){ t=a[ip*n+iq]/h; }
+        else{ const theta=0.5*h/a[ip*n+iq]; t=1/(Math.abs(theta)+Math.sqrt(1+theta*theta)); if(theta<0) t=-t; }
+        const c=1/Math.sqrt(1+t*t), s=t*c, tau=s/(1+c); h=t*a[ip*n+iq];
+        z[ip]-=h; z[iq]+=h; d[ip]-=h; d[iq]+=h; a[ip*n+iq]=0;
+        for(let j=0;j<ip;j++) rot(a,n,s,tau,j,ip,j,iq);
+        for(let j=ip+1;j<iq;j++) rot(a,n,s,tau,ip,j,j,iq);
+        for(let j=iq+1;j<n;j++) rot(a,n,s,tau,ip,j,iq,j);
+        if(wantVec) for(let j=0;j<n;j++) rot(v,n,s,tau,j,ip,j,iq);
+      }
+    }
+    for(let ip=0;ip<n;ip++){ b[ip]+=z[ip]; d[ip]=b[ip]; z[ip]=0; }
+  }
+  return { vals:d, vec:v };
+}
+function buildProblem(N,ids,amps,n){
+  const v0=new Float64Array(N+1); for(let k=0;k<ids.length;k++) v0[ids[k]]=amps[k];
+  const pos1=new Int32Array(N+1), pos2=new Int32Array(N+1);
+  for(let id=1;id<=N;id++){ const col=Math.ceil(id/n), k=id-(col-1)*n; pos1[id]=col; pos2[id]=n-k+1; }
+  const target=[]; for(let id=1;id<=N;id++) if(v0[id]!==0) target.push(id);
+  const isTarget=new Uint8Array(N+1); for(const t of target) isTarget[t]=1;
+  const AA=[];
+  for(let a=1;a<=N;a++){ if(isTarget[a]) continue;
+    if(a%n!==0){ const b=a+1; if(b<=N&&!isTarget[b]) AA.push([a,b]); }
+    const b2=a+n; if(b2<=N&&!isTarget[b2]) AA.push([a,b2]);
+  }
+  const D=(N-1)+(N-n)+AA.length;
+  return { N,n,v0,pos1,pos2,target,AA,D };
+}
+function rng(P,i,j){ const dx=P.pos1[i]-P.pos1[j], dy=P.pos2[i]-P.pos2[j]; return dx*dx+dy*dy; }
+function buildHamiltonian(P,x,ra){
+  const N=P.N,n=P.n,v0=P.v0,target=P.target,AA=P.AA;
+  const H=new Float64Array(N*N); const idx=(i,j)=>(i-1)*N+(j-1);
+  for(let i=1;i<=N-1;i++){ if(i%n!==0){ const v=x[i-1]; H[idx(i,i+1)]=v; H[idx(i+1,i)]=v; } }
+  for(let i=1;i<=N-n;i++){ const v=x[(N-1)+(i-1)]; H[idx(i,i+n)]=v; H[idx(i+n,i)]=v; }
+  const dotRow=(i)=>{ let s=0; for(const t of target) s+=H[idx(i,t)]*v0[t]; return s; };
+  for(let i=1;i<=N;i++){
+    let ind=target.slice(); if(v0[i]!==0) ind=ind.filter(id=>id>=i); if(ind.length===0) ind=[i];
+    ind.sort((p,q)=>rng(P,i,p)-rng(P,i,q));
+    let s=ind[0]; let q=(-dotRow(i)+H[idx(i,s)]*v0[s])/v0[s];
+    if(ra!==1){ while(Math.abs(q)<1e-15 && ind.length>1 && (s===i+1||s===i-1||s===i+n||s===i-n)){ ind=ind.slice(1); s=ind[0]; q=(-dotRow(i)+H[idx(i,s)]*v0[s])/v0[s]; } }
+    H[idx(i,s)]=q; H[idx(s,i)]=q;
+  }
+  const base=(N-1)+(N-n);
+  for(let k=0;k<AA.length;k++){ const a=AA[k][0],b=AA[k][1],v=x[base+k]; H[idx(a,b)]=v; H[idx(b,a)]=v; }
+  return H;
+}
+function maxAbs(H){ let m=0; for(let k=0;k<H.length;k++){ const a=Math.abs(H[k]); if(a>m)m=a; } return m; }
+function objective(P,x,ra){
+  const H=buildHamiltonian(P,x,ra); const m=maxAbs(H); if(m===0) return -1e9;
+  const r=jacobiEig(H,P.N,false); const abss=Array.from(r.vals,Math.abs).sort((a,b)=>a-b);
+  return abss[1]/m;
+}
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function gauss(rand){ let u=0,v=0; while(u===0)u=rand(); while(v===0)v=rand(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function optimize(P,ra,lb,ub,opts){
+  const D=P.D, span=ub-lb, rand=mulberry32(opts.seed||0x9e3779b9);
+  const clip=v=> v<lb?lb:(v>ub?ub:v);
+  let best=null,bestF=-Infinity; const restarts=opts.restarts||1;
+  const now=opts.now, t0=now(), budget=opts.budget||12000, maxIter=opts.maxIter||4000;
+  const onProgress=opts.onProgress||function(){}; let evalsTotal=0;
+  for(let r=0;r<restarts;r++){
+    const x=new Float64Array(D); for(let k=0;k<D;k++) x[k]=lb+rand()*span;
+    let fx=objective(P,x,ra); evalsTotal++;
+    if(fx>bestF){ bestF=fx; best=Float64Array.from(x); }
+    let sigma=0.18*span, succ=0, win=0; const winLen=Math.max(10,Math.round(D/4));
+    for(let it=0;it<maxIter;it++){
+      const y=new Float64Array(D); for(let k=0;k<D;k++) y[k]=clip(x[k]+sigma*gauss(rand));
+      const fy=objective(P,y,ra); evalsTotal++;
+      if(fy>fx){ x.set(y); fx=fy; succ++; } win++;
+      if(win>=winLen){ const rate=succ/win; if(rate>0.2) sigma*=1.25; else sigma/=1.25; sigma=Math.min(Math.max(sigma,1e-4*span),span); succ=0; win=0; }
+      if(fx>bestF){ bestF=fx; best=Float64Array.from(x); }
+      if((it&31)===0){ onProgress(it,bestF,evalsTotal,(now()-t0)/budget); if(now()-t0>budget) break; }
+    }
+    if(now()-t0>budget) break;
+  }
+  return { x:best, f:bestF, evals:evalsTotal };
+}
+function runDesign(N,ids,amps,n,ra,MAXIT,lb,ub,hooks){
+  const P=buildProblem(N,ids,amps,n); const heavy=N>81;
+  const res=optimize(P,ra,lb,ub,{ restarts:heavy?1:(N<=36?3:2), maxIter:Math.max(300,MAXIT*(heavy?20:60)),
+    budget:hooks.budget||12000, now:hooks.now, onProgress:hooks.onProgress });
+  const H=buildHamiltonian(P,res.x,ra); const e=jacobiEig(H,N,true);
+  const order=Array.from({length:N},(_,i)=>i).sort((a,b)=>e.vals[a]-e.vals[b]);
+  const spectrum=order.map(i=>e.vals[i]);
+  let zi=0,zb=Infinity; for(let i=0;i<N;i++){ const a=Math.abs(e.vals[i]); if(a<zb){ zb=a; zi=i; } }
+  const psi=new Float64Array(N); for(let r=0;r<N;r++) psi[r]=e.vec[r*N+zi];
+  let dotv=0; for(let id=1;id<=N;id++) dotv+=psi[id-1]*P.v0[id]; if(dotv<0) for(let r=0;r<N;r++) psi[r]=-psi[r];
+  let pm=0; for(let r=0;r<N;r++) pm=Math.max(pm,Math.abs(psi[r])); if(pm>0) for(let r=0;r<N;r++) psi[r]/=pm;
+  return { H:Array.from(H), spectrum, zero:Array.from(psi), fval:-res.f, gap:res.f, evals:res.evals };
+}
+self.onmessage=function(ev){
+  const d=ev.data;
+  try{
+    const out=runDesign(d.N,d.ids,d.amps,d.n,d.ra,d.MAXIT,d.lb,d.ub,{
+      budget:d.budget, now:()=>self.performance.now(),
+      onProgress:(it,f,ev2,frac)=>self.postMessage({type:'progress',iter:it,gap:f,evals:ev2,frac:frac})
+    });
+    self.postMessage({type:'done', result:out});
+  }catch(err){ self.postMessage({type:'error', message:String(err&&err.message||err)}); }
+};
+</script>
+
+<!-- ============== main thread ============== -->
+<script>
+(function(){
+  "use strict";
+  // ---------- shared state ----------
+  let n=5, N=25, amp=new Float64Array(N);      // amp[siteId-1]
+  let last=null;                               // last result
+  let painting=false, erasing=false;
+
+  const $ = id => document.getElementById(id);
+  const nInput=$('nInput'), maxItInput=$('maxItInput'), lbInput=$('lbInput'), ubInput=$('ubInput');
+  const raSel=$('raSel'), exampleSel=$('exampleSel'), statusEl=$('status');
+  const latticeTitle=$('latticeTitle'), selCount=$('selCount'), gapReadout=$('gapReadout');
+  const progress=$('progress'), progBar=progress.querySelector('i');
+  const resultsEl=$('results'), saveBtn=$('saveBtn');
+
+  const cv=$('lattice'), ctx=cv.getContext('2d');
+
+  // ---------- diverging colour map (matches MATLAB bwr) ----------
+  const COL_BLUE=[59,76,191], COL_WHITE=[255,255,255], COL_RED=[199,38,38];
+  function lerp(a,b,t){ return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t]; }
+  function bwr(t){ // t in [-1,1]
+    t=Math.max(-1,Math.min(1,t));
+    const c = t<0 ? lerp(COL_BLUE,COL_WHITE,t+1) : lerp(COL_WHITE,COL_RED,t);
+    return `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
+  }
+
+  // ---------- canvas sizing with devicePixelRatio ----------
+  function fitCanvas(canvas, cssW, cssH){
+    const dpr=Math.min(window.devicePixelRatio||1, 2);
+    canvas.style.width=cssW+'px'; canvas.style.height=cssH+'px';
+    canvas.width=Math.round(cssW*dpr); canvas.height=Math.round(cssH*dpr);
+    const c=canvas.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0);
+    return c;
+  }
+  function latticeMetrics(){
+    const frameW = cv.parentElement.clientWidth - 20; // padding
+    const cssW = Math.max(220, frameW);
+    const cssH = cssW;                                  // square stage
+    return { cssW, cssH };
+  }
+  function sitePix(c, r, m){ // column c(1..n), row r(1..n top), margin/cell from m
+    return { x: m.pad + (c-0.5)*m.cell, y: m.pad + (r-0.5)*m.cell };
+  }
+  function metrics(cssW, cssH){
+    const pad = Math.max(18, cssW*0.06);
+    const cell = (cssW - 2*pad)/n;
+    return { pad, cell, cssW, cssH };
+  }
+  function siteColRow(id){ const c=Math.ceil(id/n); const r=id-(c-1)*n; return {c,r}; } // r row-from-top
+
+  // ---------- draw lattice ----------
+  let M=null;
+  function drawLattice(){
+    const {cssW,cssH}=latticeMetrics();
+    const c=fitCanvas(cv,cssW,cssH);
+    M=metrics(cssW,cssH);
+    c.clearRect(0,0,cssW,cssH);
+    // grid lines
+    c.strokeStyle='#e2dfd5'; c.lineWidth=1;
+    for(let i=1;i<=n;i++){
+      const a=sitePix(i,1,M), b=sitePix(i,n,M); c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x,b.y); c.stroke();
+      const e=sitePix(1,i,M), f=sitePix(n,i,M); c.beginPath(); c.moveTo(e.x,e.y); c.lineTo(f.x,f.y); c.stroke();
+    }
+    // sites
+    let clim=0; for(let k=0;k<N;k++) clim=Math.max(clim,Math.abs(amp[k])); if(clim===0) clim=1;
+    const baseR=Math.max(4, M.cell*0.16), selR=Math.max(6, M.cell*0.26);
+    c.font=`${Math.max(9,M.cell*0.22)|0}px ui-monospace, monospace`;
+    c.textAlign='center'; c.textBaseline='middle';
+    for(let id=1; id<=N; id++){
+      const {c:col,r:row}=siteColRow(id); const p=sitePix(col,row,M); const a=amp[id-1];
+      if(a===0){
+        c.fillStyle='#c4c6cc'; c.beginPath(); c.arc(p.x,p.y,baseR,0,7); c.fill();
+      }else{
+        c.fillStyle=bwr(a/clim); c.beginPath(); c.arc(p.x,p.y,selR,0,7); c.fill();
+        c.lineWidth=1.4; c.strokeStyle='#1c1f24'; c.stroke();
+        c.fillStyle='#1c1f24';
+        c.fillText(fmt(a), p.x, p.y - selR - M.cell*0.16);
+      }
+    }
+    const cnt=countSel();
+    selCount.textContent = cnt===1 ? '1 site selected' : cnt+' sites selected';
+  }
+  function fmt(v){ const s=(Math.round(v*100)/100); return Number.isInteger(s)? String(s) : String(s); }
+  function countSel(){ let n0=0; for(let k=0;k<N;k++) if(amp[k]!==0) n0++; return n0; }
+
+  // ---------- hit test ----------
+  function pickSite(px,py){
+    if(!M) return 0; let best=0, bd=Infinity;
+    for(let id=1;id<=N;id++){ const {c,r}=siteColRow(id); const p=sitePix(c,r,M);
+      const d=(p.x-px)*(p.x-px)+(p.y-py)*(p.y-py); if(d<bd){ bd=d; best=id; } }
+    return Math.sqrt(bd) <= M.cell*0.5 ? best : 0;
+  }
+  function evtPos(ev){ const rect=cv.getBoundingClientRect(); return { x:ev.clientX-rect.left, y:ev.clientY-rect.top }; }
+
+  // ---------- interaction ----------
+  cv.addEventListener('contextmenu', e=>e.preventDefault());
+  cv.addEventListener('pointerdown', ev=>{
+    cv.setPointerCapture(ev.pointerId);
+    const {x,y}=evtPos(ev); const id=pickSite(x,y); if(!id) return;
+    if(ev.pointerType==='touch' || ev.pointerType==='pen'){ amp[id-1] = amp[id-1]===0?1:0; drawLattice(); return; }
+    if(ev.button===2){ erasing=true; painting=false; amp[id-1]=0; drawLattice(); }
+    else { painting=true; erasing=false; amp[id-1]=1; drawLattice(); }
+  });
+  cv.addEventListener('pointermove', ev=>{
+    if(!(painting||erasing)) return; const {x,y}=evtPos(ev); const id=pickSite(x,y); if(!id) return;
+    if(painting && amp[id-1]===0){ amp[id-1]=1; drawLattice(); }
+    else if(erasing && amp[id-1]!==0){ amp[id-1]=0; drawLattice(); }
+  });
+  function endPaint(){ painting=false; erasing=false; }
+  cv.addEventListener('pointerup', endPaint);
+  cv.addEventListener('pointercancel', endPaint);
+  cv.addEventListener('dblclick', ev=>{
+    const {x,y}=evtPos(ev); const id=pickSite(x,y); if(!id) return;
+    const {c,r}=siteColRow(id);
+    const v=prompt(`Target amplitude at site ${id}  (column ${c}, row ${r}):`, String(amp[id-1]));
+    if(v===null) return; const num=Number(v);
+    if(!Number.isFinite(num)){ alert('Please enter a real number.'); return; }
+    amp[id-1]=num; drawLattice();
+  });
+
+  // ---------- build / reset ----------
+  function rebuild(newN){
+    n=newN; N=n*n; amp=new Float64Array(N);
+    latticeTitle.textContent=`${n} × ${n} lattice · N = ${N} sites`;
+    drawLattice();
+  }
+  $('buildBtn').addEventListener('click', ()=>{
+    let v=Math.round(Number(nInput.value));
+    if(!Number.isFinite(v)||v<2){ alert('Grid size n must be an integer ≥ 2.'); return; }
+    if(v>16 && !confirm(`n = ${v} gives N = ${v*v} sites; optimisation may take a while in the browser. Continue?`)) return;
+    if(v>24) v=24;
+    nInput.value=v; rebuild(v);
+    setStatus('Grid built. Paint sites on the lattice.','ok');
+  });
+  $('clearBtn').addEventListener('click', ()=>{ amp=new Float64Array(N); drawLattice(); setStatus('Cleared.','ok'); });
+
+  // ---------- status ----------
+  function setStatus(msg, kind){ statusEl.textContent=msg; statusEl.className='status'+(kind==='run'?' run':kind==='err'?' err':''); }
+
+  // =========================================================
+  //  examples (ported from the MATLAB built-ins, force n = 10)
+  // =========================================================
+  const EX_LABELS=['— Load example (10×10) —','A · letter','B · letter','C · letter','D · letter',
+    '1 · digit','2 · digit','3 · digit','4 · digit',
+    '91 · HOTI corner','92 · vortex ring','93 · skyrmion radial','94 · Friedel oscillations',
+    '95 · soliton (sech)','96 · flat-band CLS','97 · pₓ orbital','98 · p_y orbital',
+    '99 · d_{x²−y²} orbital','100 · d_{xy} orbital'];
+  const EX_KEYS=['A','B','C','D','1','2','3','4','hoti_corner','vortex_ring','skyrmion_radial',
+    'friedel_osc','soliton_sech','flatband_cls','orbital_px','orbital_py','orbital_dx2y2','orbital_dxy'];
+  EX_LABELS.forEach((t,i)=>{ const o=document.createElement('option'); o.value=String(i); o.textContent=t; exampleSel.appendChild(o); });
+
+  const LETTER={A:['01110','10001','10001','11111','10001','10001','10001'],
+    B:['11110','10001','10001','11110','10001','10001','11110'],
+    C:['01111','10000','10000','10000','10000','10000','01111'],
+    D:['11110','10001','10001','10001','10001','10001','11110']};
+  const DIGIT={'1':['00100','01100','00100','00100','00100','00100','01110'],
+    '2':['01110','10001','00001','00010','00100','01000','11111'],
+    '3':['11111','00010','00100','00010','00001','10001','01110'],
+    '4':['00010','00110','01010','10010','11111','00010','00010']};
+
+  function zeros2(nn){ const F=[]; for(let r=0;r<nn;r++) F.push(new Float64Array(nn)); return F; }
+  function bitmapToField(rows, nn){
+    const fr=rows.length, fc=rows[0].length, or=Math.floor((nn-fr)/2), oc=Math.floor((nn-fc)/2);
+    const F=zeros2(nn);
+    for(let r=0;r<fr;r++) for(let c=0;c<fc;c++) if(rows[r][c]==='1') F[r+or][c+oc]=1;
+    return F;
+  }
+  function genFieldCmt(name, nn){
+    const F=zeros2(nn);
+    for(let r=1;r<=nn;r++) for(let c=1;c<=nn;c++){
+      const xx=c-(nn+1)/2, yy=(nn+1)/2-r, rr=Math.hypot(xx,yy), s=nn/4; let val=0;
+      switch(name){
+        case 'hoti_corner': val=Math.pow(-1,r+c)*Math.exp(-((r-1)+(c-1))/2.0); break;
+        case 'vortex_ring': val=Math.exp(-Math.pow(rr-3,2)/(2*0.8*0.8)); break;
+        case 'skyrmion_radial': val=Math.cos(Math.PI*Math.min(rr,4.5)/4.5); break;
+        case 'friedel_osc': { let r2=rr<0.6?0.6:rr; val=Math.cos(2.2*r2)/r2; } break;
+        case 'soliton_sech': val=1/Math.cosh(rr/1.6); break;
+        case 'flatband_cls': val=0; break;
+        case 'orbital_px': val=xx*Math.exp(-rr*rr/(2*s*s)); break;
+        case 'orbital_py': val=yy*Math.exp(-rr*rr/(2*s*s)); break;
+        case 'orbital_dx2y2': val=(xx*xx-yy*yy)*Math.exp(-rr*rr/(2*s*s)); break;
+        case 'orbital_dxy': val=(xx*yy)*Math.exp(-rr*rr/(2*s*s)); break;
+      }
+      F[r-1][c-1]=val;
+    }
+    if(name==='flatband_cls'){ F[4][4]=1; F[4][5]=-1; F[5][4]=-1; F[5][5]=1; }
+    return F;
+  }
+  function clusterize(F, maxsites, floorval){
+    const nn=F.length; const A=F.map(row=>Float64Array.from(row, Math.abs));
+    let mx=0,si=0,sj=0; for(let r=0;r<nn;r++) for(let c=0;c<nn;c++) if(A[r][c]>mx){ mx=A[r][c]; si=r; sj=c; }
+    if(mx===0) return F.map(row=>Float64Array.from(row));
+    floorval=Math.max(floorval,1e-12);
+    const sel=Array.from({length:nn},()=>new Uint8Array(nn)); sel[si][sj]=1; let count=1;
+    while(count<maxsites){
+      let bestv=-1,br=-1,bc=-1;
+      for(let r=0;r<nn;r++) for(let c=0;c<nn;c++){
+        if(sel[r][c]||A[r][c]<floorval) continue; let adj=false;
+        for(let dr=-1;dr<=1&&!adj;dr++) for(let dc=-1;dc<=1;dc++){ if(dr===0&&dc===0) continue;
+          const rr=r+dr,cc=c+dc; if(rr>=0&&rr<nn&&cc>=0&&cc<nn&&sel[rr][cc]){ adj=true; break; } }
+        if(adj&&A[r][c]>bestv){ bestv=A[r][c]; br=r; bc=c; }
+      }
+      if(bestv<0) break; sel[br][bc]=1; count++;
+    }
+    const F2=zeros2(nn); for(let r=0;r<nn;r++) for(let c=0;c<nn;c++) if(sel[r][c]) F2[r][c]=F[r][c];
+    return F2;
+  }
+  function fieldToShape(F, nn, thr){
+    const ids=[], amps=[];
+    for(let c=0;c<nn;c++) for(let r=0;r<nn;r++) if(Math.abs(F[r][c])>thr){ ids.push(c*nn+r+1); amps.push(F[r][c]); }
+    if(ids.length===0){ const mid=Math.ceil(nn/2); ids.push((mid-1)*nn+mid); amps.push(1); }
+    return {ids, amps};
+  }
+  function exampleTarget(key, nn){
+    if('ABCD'.includes(key)) return fieldToShape(clusterize(bitmapToField(LETTER[key],nn),40,0.5), nn, 1e-9);
+    if('1234'.includes(key)) return fieldToShape(clusterize(bitmapToField(DIGIT[key],nn),40,0.5), nn, 1e-9);
+    // quantum: central 6×6 window, drop tiny
+    let F=genFieldCmt(key,nn); const lo=2,hi=7;
+    for(let r=0;r<nn;r++) for(let c=0;c<nn;c++) if(r<lo||r>hi||c<lo||c>hi) F[r][c]=0;
+    let m=0; for(let r=0;r<nn;r++) for(let c=0;c<nn;c++) m=Math.max(m,Math.abs(F[r][c]));
+    if(m>0) for(let r=0;r<nn;r++) for(let c=0;c<nn;c++) F[r][c]/=m;
+    for(let r=0;r<nn;r++) for(let c=0;c<nn;c++) if(Math.abs(F[r][c])<0.06) F[r][c]=0;
+    return fieldToShape(F, nn, 1e-9);
+  }
+  exampleSel.addEventListener('change', ()=>{
+    const v=Number(exampleSel.value); if(v<=0) return;
+    const key=EX_KEYS[v-1];
+    nInput.value=10; rebuild(10);
+    const {ids,amps}=exampleTarget(key,10);
+    for(let k=0;k<ids.length;k++) amp[ids[k]-1]=amps[k];
+    drawLattice(); exampleSel.value='0';
+    setStatus('Loaded example: '+key,'ok');
+  });
+
+  // =========================================================
+  //  optimisation worker
+  // =========================================================
+  let worker=null;
+  function makeWorker(){
+    const src=document.getElementById('workerSrc').textContent;
+    const blob=new Blob([src],{type:'text/javascript'});
+    return new Worker(URL.createObjectURL(blob));
+  }
+  function setRunning(on){
+    ['buildBtn','runBtn','clearBtn','exampleSel','nInput','raSel','maxItInput','lbInput','ubInput'].forEach(id=>$(id).disabled=on);
+    saveBtn.disabled = on || !last;
+    progress.style.display = on?'block':'none'; if(!on) progBar.style.width='0%';
+    document.body.style.cursor = on?'progress':'';
+  }
+
+  $('runBtn').addEventListener('click', ()=>{
+    const ids=[], amps=[];
+    for(let id=1;id<=N;id++) if(amp[id-1]!==0){ ids.push(id); amps.push(amp[id-1]); }
+    if(ids.length===0){ alert('Select at least one site before running.'); return; }
+    const ra=Number(raSel.value)===1?1:2;
+    let MAXIT=Math.round(Number(maxItInput.value)); if(!Number.isFinite(MAXIT)||MAXIT<1) MAXIT=80;
+    let lb=Number(lbInput.value), ub=Number(ubInput.value);
+    if(!Number.isFinite(lb)) lb=-1; if(!Number.isFinite(ub)) ub=1;
+    if(ub<=lb){ alert('Upper bound must be greater than lower bound.'); return; }
+    const budget = N>81 ? 16000 : (N>49 ? 12000 : 8000);
+
+    setRunning(true); setStatus('Running optimization… please wait.','run');
+    gapReadout.innerHTML='spectral gap<br><b>solving…</b>';
+    if(worker) worker.terminate(); worker=makeWorker();
+    worker.onmessage=(e)=>{
+      const d=e.data;
+      if(d.type==='progress'){
+        progBar.style.width=Math.min(100,Math.round((d.frac||0)*100))+'%';
+        gapReadout.innerHTML='spectral gap<br><b>'+(d.gap>0?d.gap.toFixed(4):'solving…')+'</b>';
+      } else if(d.type==='done'){
+        last={ ...d.result, n:n, N:N, ids:ids.slice(), amps:amps.slice() };
+        setRunning(false); setStatus('Done. Showing results.','ok');
+        gapReadout.innerHTML='spectral gap<br><b>'+d.result.gap.toFixed(4)+'</b>';
+        showResults(); saveBtn.disabled=false;
+      } else if(d.type==='error'){
+        setRunning(false); setStatus('Run failed: '+d.message,'err'); alert('Optimization error: '+d.message);
+      }
+    };
+    worker.postMessage({N,ids,amps,n,ra,MAXIT,lb,ub,budget});
+  });
+
+  // =========================================================
+  //  results drawing
+  // =========================================================
+  function showResults(){ resultsEl.classList.add('show'); drawConn(); drawSpec(); drawZero(); }
+
+  function colRowFromId(id){ const c=Math.ceil(id/last.n); const r=id-(c-1)*last.n; return {c,r}; }
+
+  function drawConn(){
+    const cE=$('cConn'); const W=cE.parentElement.clientWidth-20, S=Math.max(180,W);
+    const c=fitCanvas(cE,S,S); const nn=last.n, H=last.H;
+    c.clearRect(0,0,S,S);
+    const pad=S*0.07, cell=(S-2*pad)/nn;
+    const px=(col,row)=>({x:pad+(col-0.5)*cell, y:pad+(row-0.5)*cell});
+    let maxA=0; for(let k=0;k<H.length;k++) maxA=Math.max(maxA,Math.abs(H[k])); if(maxA===0) maxA=1;
+    // bonds
+    c.strokeStyle='#5a5a5a';
+    for(let i=1;i<=nn*nn;i++) for(let j=i+1;j<=nn*nn;j++){
+      const v=H[(i-1)*nn*nn+(j-1)]; if(v===0) continue;
+      const a=colRowFromId(i), b=colRowFromId(j), pa=px(a.c,a.r), pb=px(b.c,b.r);
+      c.lineWidth=Math.min(Math.max(3*Math.abs(v)/maxA,0.3),6);
+      c.beginPath(); c.moveTo(pa.x,pa.y); c.lineTo(pb.x,pb.y); c.stroke();
+    }
+    // all sites grey
+    for(let id=1;id<=nn*nn;id++){ const a=colRowFromId(id), p=px(a.c,a.r);
+      c.fillStyle='#cfcfcf'; c.beginPath(); c.arc(p.x,p.y,Math.max(2,cell*0.12),0,7); c.fill(); }
+    // target sites coloured
+    let cl=0; for(let k=0;k<last.amps.length;k++) cl=Math.max(cl,Math.abs(last.amps[k])); if(cl===0) cl=1;
+    for(let k=0;k<last.ids.length;k++){ const a=colRowFromId(last.ids[k]), p=px(a.c,a.r);
+      c.fillStyle=bwr(last.amps[k]/cl); c.beginPath(); c.arc(p.x,p.y,Math.max(4,cell*0.2),0,7); c.fill();
+      c.lineWidth=1.2; c.strokeStyle='#1c1f24'; c.stroke(); }
+  }
+
+  function drawSpec(){
+    const cE=$('cSpec'); const W=cE.parentElement.clientWidth-20, S=Math.max(180,W);
+    const c=fitCanvas(cE,S,S); const ev=last.spectrum, NN=ev.length;
+    c.clearRect(0,0,S,S);
+    const L=S*0.16, R=S*0.04, T=S*0.06, B=S*0.12, w=S-L-R, h=S-T-B;
+    let mn=Math.min(...ev), mx=Math.max(...ev); if(mn===mx){ mn-=1; mx+=1; }
+    const pad=(mx-mn)*0.08; mn-=pad; mx+=pad;
+    const X=i=>L+(NN<=1?0.5:i/(NN-1))*w, Y=v=>T+(1-(v-mn)/(mx-mn))*h;
+    // axes + zero line
+    c.strokeStyle='#cfcdc4'; c.lineWidth=1;
+    c.beginPath(); c.moveTo(L,T); c.lineTo(L,T+h); c.lineTo(L+w,T+h); c.stroke();
+    if(mn<0&&mx>0){ c.strokeStyle='#e3b9b9'; c.beginPath(); c.moveTo(L,Y(0)); c.lineTo(L+w,Y(0)); c.stroke(); }
+    // points
+    c.fillStyle='#2b6f86';
+    for(let i=0;i<NN;i++){ c.beginPath(); c.arc(X(i),Y(ev[i]),Math.max(1.6,S*0.011),0,7); c.fill(); }
+    // labels
+    c.fillStyle='#6b6b66'; c.font=`${Math.max(9,S*0.035)|0}px ui-monospace, monospace`;
+    c.textAlign='right'; c.textBaseline='middle';
+    c.fillText(mx.toFixed(2), L-6, Y(mx)); c.fillText(mn.toFixed(2), L-6, Y(mn));
+    c.textAlign='center'; c.textBaseline='top'; c.fillText('eigenvalue index', L+w/2, T+h+4);
+  }
+
+  function drawZero(){
+    const cE=$('cZero'); const W=cE.parentElement.clientWidth-20, S=Math.max(180,W);
+    const c=fitCanvas(cE,S,S); const nn=last.n, psi=last.zero;
+    c.clearRect(0,0,S,S);
+    const pad=S*0.06, grid=S-2*pad, cell=grid/nn;
+    let cl=0; for(let k=0;k<psi.length;k++) cl=Math.max(cl,Math.abs(psi[k])); if(cl===0) cl=1;
+    for(let row=1;row<=nn;row++) for(let col=1;col<=nn;col++){
+      const id=(col-1)*nn+row; const v=psi[id-1];
+      c.fillStyle=bwr(v/cl);
+      c.fillRect(pad+(col-1)*cell, pad+(row-1)*cell, cell+0.5, cell+0.5);
+    }
+    c.strokeStyle='#cfcdc4'; c.lineWidth=1; c.strokeRect(pad,pad,grid,grid);
+  }
+
+  window.addEventListener('resize', ()=>{ drawLattice(); if(last) showResults(); });
+
+  // =========================================================
+  //  downloads
+  // =========================================================
+  function downloadURL(url, name){ const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
+  function downloadText(text, name, mime){ const blob=new Blob([text],{type:mime||'text/plain'}); const u=URL.createObjectURL(blob); downloadURL(u,name); setTimeout(()=>URL.revokeObjectURL(u),2000); }
+
+  $('dlPng').addEventListener('click', ()=>{
+    if(!last) return;
+    // composite the three panels onto one canvas at fixed resolution
+    const W=560, gap=16, comp=document.createElement('canvas'); comp.width=W*3+gap*2; comp.height=W+40;
+    const cc=comp.getContext('2d'); cc.fillStyle='#ffffff'; cc.fillRect(0,0,comp.width,comp.height);
+    const titles=['Hamiltonian connectivity','Eigenvalue spectrum','Zero-energy state'];
+    const drawers=[drawConnTo, drawSpecTo, drawZeroTo];
+    cc.fillStyle='#444'; cc.font='14px sans-serif'; cc.textAlign='left';
+    drawers.forEach((fn,i)=>{ const x=i*(W+gap); cc.fillText(titles[i], x+4, 22); fn(cc, x, 32, W); });
+    downloadURL(comp.toDataURL('image/png'), 'design_results.png');
+  });
+  // offscreen drawers (reuse logic at fixed size)
+  function drawConnTo(c,ox,oy,S){ const nn=last.n,H=last.H; const pad=S*0.07,cell=(S-2*pad)/nn;
+    const px=(col,row)=>({x:ox+pad+(col-0.5)*cell,y:oy+pad+(row-0.5)*cell});
+    let maxA=0; for(let k=0;k<H.length;k++) maxA=Math.max(maxA,Math.abs(H[k])); if(maxA===0)maxA=1;
+    c.strokeStyle='#5a5a5a';
+    for(let i=1;i<=nn*nn;i++) for(let j=i+1;j<=nn*nn;j++){ const v=H[(i-1)*nn*nn+(j-1)]; if(v===0)continue;
+      const a=colRowFromId(i),b=colRowFromId(j),pa=px(a.c,a.r),pb=px(b.c,b.r);
+      c.lineWidth=Math.min(Math.max(3*Math.abs(v)/maxA,0.3),6); c.beginPath(); c.moveTo(pa.x,pa.y); c.lineTo(pb.x,pb.y); c.stroke(); }
+    for(let id=1;id<=nn*nn;id++){ const a=colRowFromId(id),p=px(a.c,a.r); c.fillStyle='#cfcfcf'; c.beginPath(); c.arc(p.x,p.y,Math.max(2,cell*0.12),0,7); c.fill(); }
+    let cl=0; for(let k=0;k<last.amps.length;k++) cl=Math.max(cl,Math.abs(last.amps[k])); if(cl===0)cl=1;
+    for(let k=0;k<last.ids.length;k++){ const a=colRowFromId(last.ids[k]),p=px(a.c,a.r); c.fillStyle=bwr(last.amps[k]/cl);
+      c.beginPath(); c.arc(p.x,p.y,Math.max(4,cell*0.2),0,7); c.fill(); c.lineWidth=1.2; c.strokeStyle='#1c1f24'; c.stroke(); } }
+  function drawSpecTo(c,ox,oy,S){ const ev=last.spectrum,NN=ev.length; const L=ox+S*0.16,R=S*0.04,T=oy+S*0.06,B=S*0.12,w=S-S*0.16-R,h=S-S*0.06-B;
+    let mn=Math.min(...ev),mx=Math.max(...ev); if(mn===mx){mn-=1;mx+=1;} const pd=(mx-mn)*0.08; mn-=pd; mx+=pd;
+    const X=i=>L+(NN<=1?0.5:i/(NN-1))*w, Y=v=>T+(1-(v-mn)/(mx-mn))*h;
+    c.strokeStyle='#cfcdc4'; c.lineWidth=1; c.beginPath(); c.moveTo(L,T); c.lineTo(L,T+h); c.lineTo(L+w,T+h); c.stroke();
+    if(mn<0&&mx>0){ c.strokeStyle='#e3b9b9'; c.beginPath(); c.moveTo(L,Y(0)); c.lineTo(L+w,Y(0)); c.stroke(); }
+    c.fillStyle='#2b6f86'; for(let i=0;i<NN;i++){ c.beginPath(); c.arc(X(i),Y(ev[i]),2.2,0,7); c.fill(); }
+    c.fillStyle='#6b6b66'; c.font='11px monospace'; c.textAlign='right'; c.textBaseline='middle';
+    c.fillText(mx.toFixed(2),L-6,Y(mx)); c.fillText(mn.toFixed(2),L-6,Y(mn)); }
+  function drawZeroTo(c,ox,oy,S){ const nn=last.n,psi=last.zero; const pad=S*0.06,grid=S-2*pad,cell=grid/nn;
+    let cl=0; for(let k=0;k<psi.length;k++) cl=Math.max(cl,Math.abs(psi[k])); if(cl===0)cl=1;
+    for(let row=1;row<=nn;row++) for(let col=1;col<=nn;col++){ const id=(col-1)*nn+row,v=psi[id-1];
+      c.fillStyle=bwr(v/cl); c.fillRect(ox+pad+(col-1)*cell, oy+pad+(row-1)*cell, cell+0.5, cell+0.5); }
+    c.strokeStyle='#cfcdc4'; c.lineWidth=1; c.strokeRect(ox+pad,oy+pad,grid,grid); }
+
+  $('dlCsv').addEventListener('click', ()=>{
+    if(!last) return; const nn=last.n, NN=nn*nn; let out='';
+    for(let i=0;i<NN;i++){ const row=[]; for(let j=0;j<NN;j++) row.push(last.H[i*NN+j].toPrecision(8)); out+=row.join(',')+'\n'; }
+    downloadText(out,'Hamiltonian.csv','text/csv');
+  });
+  $('dlJson').addEventListener('click', ()=>{
+    if(!last) return; const nn=last.n, NN=nn*nn; const Hm=[];
+    for(let i=0;i<NN;i++){ const r=[]; for(let j=0;j<NN;j++) r.push(last.H[i*NN+j]); Hm.push(r); }
+    const obj={ n:nn, N:NN, ids:last.ids, amps:last.amps, fval:last.fval, gap_ratio:last.gap, H:Hm, spectrum:last.spectrum, zero_mode:last.zero };
+    downloadText(JSON.stringify(obj,null,2),'Hamiltonian.json','application/json');
+  });
+  $('saveBtn').addEventListener('click', ()=>{ if(last){ resultsEl.scrollIntoView({behavior:'smooth'}); $('dlPng').focus(); } });
+
+  // ---------- init ----------
+  rebuild(5);
+})();
+</script>
+</body>
+</html>
